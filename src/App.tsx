@@ -22,13 +22,14 @@ const EMAILJS_SERVICE = 'service_ggi5lxk'; // replace with your EmailJS Service 
 const EMAILJS_TEMPLATE_OWNER = 'template_9zzc9wf'; // template for owner notification
 const EMAILJS_TEMPLATE_APPLICANT = 'template_837vlyf'; // template for applicant confirmation
 const EMAILJS_PUBLIC_KEY = '7CW75A1Bi0yiZPSSy'; // replace with your EmailJS public key
+// Loads EmailJS SDK once
 let _ejsReady = false;
 async function loadEmailJS() {
   if (_ejsReady) return;
   await new Promise((res, rej) => {
     const s = document.createElement("script");
     s.src = "https://cdn.jsdelivr.net/npm/@emailjs/browser@4/dist/email.min.js";
-    s.onload = () => { (window).emailjs.init(EMAILJS_PUBLIC_KEY); _ejsReady = true; res(); };
+    s.onload = () => { window.emailjs.init(EMAILJS_PUBLIC_KEY); _ejsReady = true; res(); };
     s.onerror = rej;
     document.head.appendChild(s);
   });
@@ -38,30 +39,30 @@ async function loadEmailJS() {
    LOCAL DATABASE
 ═══════════════════════════════════════════════════════════ */
 const DB = {
-  g: k => { try { return JSON.parse(localStorage.getItem(k) || "[]"); } catch { return []; } },
-  s: (k,v) => localStorage.setItem(k, JSON.stringify(v)),
+  g: (k: string) => { try { return JSON.parse(localStorage.getItem(k) || "[]"); } catch { return []; } },
+  s: (k: string, v) => localStorage.setItem(k, JSON.stringify(v)),
   dogs:    () => DB.g("jcyr5_dogs"),
-  sDogs:   v  => DB.s("jcyr5_dogs", v),
+  sDogs:   (v) => DB.s("jcyr5_dogs", v),
   apps:    () => DB.g("jcyr5_apps"),
-  sApps:   v  => DB.s("jcyr5_apps", v),
+  sApps:   (v) => DB.s("jcyr5_apps", v),
   gal:     () => DB.g("jcyr5_gal"),
-  sGal:    v  => DB.s("jcyr5_gal", v),
+  sGal:    (v) => DB.s("jcyr5_gal", v),
 };
 
 const uid  = () => { try { return crypto.randomUUID(); } catch(_){ return Math.random().toString(36).slice(2) + Date.now().toString(36); } };
 const ts   = () => new Date().toISOString();
-const wait = ms => new Promise(r => setTimeout(r, ms));
+const wait = (ms: number) => new Promise(r => setTimeout(r, ms));
 
 /* ═══════════════════════════════════════════════════════════
    BACKEND API
 ═══════════════════════════════════════════════════════════ */
 const API = {
-  async getDogs()       { await wait(200); return DB.dogs(); },
-  async addDog(d)       { await wait(350); const n={...d,id:uid(),createdAt:ts(),status:"available"}; DB.sDogs([n,...DB.dogs()]); return n; },
-  async updateDog(id,u) { await wait(240); const a=DB.dogs().map(d=>d.id===id?{...d,...u,updatedAt:ts()}:d); DB.sDogs(a); return a.find(d=>d.id===id); },
-  async deleteDog(id)   { await wait(180); DB.sDogs(DB.dogs().filter(d=>d.id!==id)); },
+  async getDogs()       { return DB.dogs(); },
+  async addDog(d) { await wait(100); const n={...d,id:uid(),createdAt:ts(),status:"available"}; DB.sDogs([n,...DB.dogs()]); return n; },
+  async updateDog(id, u) { await wait(240); const a=DB.dogs().map((d: any) =>d.id===id?{...d,...u,updatedAt:ts()}:d); DB.sDogs(a); return a.find((d: any) =>d.id===id); },
+  async deleteDog(id) { await wait(180); DB.sDogs(DB.dogs().filter((d: any) =>d.id!==id)); },
 
-  async submitApp(data) {
+  async submitApp(data: any) {
     const app = {
       ...data, id: uid(), submittedAt: ts(),
       status: "approved",  // auto-approved immediately
@@ -81,7 +82,7 @@ const API = {
   },
 
   // ── Full AI review using Claude ──────────────────────────
-  async _aiScreen(appId, data) {
+  async _aiScreen(appId: any, data: any) {
     try {
       const prompt = `You are a senior adoption coordinator at Janet Companion Yorkie Rescue reviewing an adoption application. Provide a thorough assessment.
 
@@ -115,9 +116,9 @@ Respond ONLY with valid JSON (no markdown, no extra text):
         })
       });
       const json = await res.json();
-      const raw  = json.content?.find(c => c.type === "text")?.text || "{}";
+      const raw  = json.content?.find((c: any) => c.type === "text")?.text || "{}";
       const parsed = JSON.parse(raw.replace(/```json|```/g, "").trim());
-      DB.sApps(DB.apps().map(a => a.id === appId ? {
+      DB.sApps(DB.apps().map((a: any) => a.id === appId ? {
         ...a,
         aiScore: parsed.score,
         aiSummary: parsed.summary,
@@ -129,12 +130,12 @@ Respond ONLY with valid JSON (no markdown, no extra text):
         aiLoading: false,
       } : a));
     } catch (_e) {
-      DB.sApps(DB.apps().map(a => a.id === appId ? { ...a, aiLoading: false, aiError: true } : a));
+      DB.sApps(DB.apps().map((a: any) => a.id === appId ? { ...a, aiLoading: false, aiError: true } : a));
     }
   },
 
   // ── Auto-send email to owner (Janet) ─────────────────────
-  async _sendOwnerEmail(appId, data) {
+  async _sendOwnerEmail(appId: any, data: any) {
     const emailBody = `
 Hi Janet! 🐾
 
@@ -167,7 +168,7 @@ Please log in to your owner dashboard to view the full AI review and respond.
 
     try {
       await loadEmailJS();
-      await (window).emailjs.send(EMAILJS_SERVICE, EMAILJS_TEMPLATE_OWNER, {
+      await window.emailjs.send(EMAILJS_SERVICE, EMAILJS_TEMPLATE_OWNER, {
         to_email: OWNER_EMAIL,
         to_name: "Janet",
         subject: `🐾 New Adoption Application — ${data.dogName} from ${data.firstName} ${data.lastName}`,
@@ -180,18 +181,18 @@ Please log in to your owner dashboard to view the full AI review and respond.
         location: data.location,
         timeline: data.timeline,
       });
-      DB.sApps(DB.apps().map(a => a.id === appId ? { ...a, emailOwnerSent: true } : a));
+      DB.sApps(DB.apps().map((a: any) => a.id === appId ? { ...a, emailOwnerSent: true } : a));
     } catch (err) {
       // Fallback: open mailto so the email still goes out
       const sub  = encodeURIComponent(`🐾 New Adoption Application – ${data.dogName} from ${data.firstName} ${data.lastName}`);
       const body = encodeURIComponent(emailBody);
       window.open(`mailto:${OWNER_EMAIL}?subject=${sub}&body=${body}`, "_blank");
-      DB.sApps(DB.apps().map(a => a.id === appId ? { ...a, emailOwnerSent: false, emailOwnerFallback: true } : a));
+      DB.sApps(DB.apps().map((a: any) => a.id === appId ? { ...a, emailOwnerSent: false, emailOwnerFallback: true } : a));
     }
   },
 
   // ── Instant approval email to client ──────────────────────
-  async _sendApprovalEmail(data) {
+  async _sendApprovalEmail(data: any) {
     const approvalBody = `
 Hi ${data.firstName}! 🎉
 
@@ -234,7 +235,7 @@ ${OWNER_EMAIL}`;
 
     try {
       await loadEmailJS();
-      await (window).emailjs.send(EMAILJS_SERVICE, EMAILJS_TEMPLATE_APPLICANT, {
+      await window.emailjs.send(EMAILJS_SERVICE, EMAILJS_TEMPLATE_APPLICANT, {
         to_email: data.email,
         to_name: `${data.firstName} ${data.lastName}`,
         subject: `🎉 APPROVED! Your Adoption of ${data.dogName} — Janet Companion Yorkie Rescue`,
@@ -249,7 +250,7 @@ ${OWNER_EMAIL}`;
   },
 
   async getApps()          { await wait(200); return DB.apps(); },
-  async setAppStatus(id,s) { await wait(160); DB.sApps(DB.apps().map(a=>a.id===id?{...a,status:s}:a)); },
+  async setAppStatus(id, s) { await wait(160); DB.sApps(DB.apps().map((a: any) =>a.id===id?{...a,status:s}:a)); },
   async getGal() {
     await wait(200);
     const existing = DB.gal();
@@ -266,8 +267,8 @@ ${OWNER_EMAIL}`;
     }
     return existing;
   },
-  async addMedia(m)        { await wait(300); const n={...m,id:uid(),addedAt:ts()}; DB.sGal([n,...DB.gal()]); return n; },
-  async deleteMedia(id)    { await wait(160); DB.sGal(DB.gal().filter(g=>g.id!==id)); },
+  async addMedia(m) { await wait(300); const n={...m,id:uid(),addedAt:ts()}; DB.sGal([n,...DB.gal()]); return n; },
+  async deleteMedia(id) { await wait(160); DB.sGal(DB.gal().filter((g: any) =>g.id!==id)); },
 };
 
 /* ═══════════════════════════════════════════════════════════
@@ -276,62 +277,62 @@ ${OWNER_EMAIL}`;
 ═══════════════════════════════════════════════════════════ */
 const SEED_GALLERY = [
   {
-    src: "https://images.unsplash.com/photo-1587300003388-59208cc962cb?w=800&q=85",
+    src: "https://images.pexels.com/photos/1458925/pexels-photo-1458925.jpeg?auto=compress&cs=tinysrgb&w=600",
     type: "image",
     caption: "Sweet little Yorkie 🐾",
   },
   {
-    src: "https://images.unsplash.com/photo-1576201836106-db1758fd1c97?w=800&q=85",
+    src: "https://images.pexels.com/photos/4587998/pexels-photo-4587998.jpeg?auto=compress&cs=tinysrgb&w=600",
     type: "image",
     caption: "Ready for a forever home",
   },
   {
-    src: "https://images.unsplash.com/photo-1574158622682-e40e69881006?w=800&q=85",
+    src: "https://images.pexels.com/photos/3361739/pexels-photo-3361739.jpeg?auto=compress&cs=tinysrgb&w=600",
     type: "image",
     caption: "Adorable pup looking for love 💛",
   },
   {
-    src: "https://images.unsplash.com/photo-1591160690555-5debfba289f0?w=800&q=85",
+    src: "https://images.pexels.com/photos/1254140/pexels-photo-1254140.jpeg?auto=compress&cs=tinysrgb&w=600",
     type: "image",
     caption: "Fluffy and full of joy",
   },
   {
-    src: "https://images.unsplash.com/photo-1558929996-da64ba858215?w=800&q=85",
+    src: "https://images.pexels.com/photos/4498216/pexels-photo-4498216.jpeg?auto=compress&cs=tinysrgb&w=600",
     type: "image",
     caption: "Tiny paws, big heart 🐕",
   },
   {
-    src: "https://images.unsplash.com/photo-1568572933382-74d440642117?w=800&q=85",
+    src: "https://images.pexels.com/photos/3860306/pexels-photo-3860306.jpeg?auto=compress&cs=tinysrgb&w=600",
     type: "image",
     caption: "Playful and curious",
   },
   {
-    src: "https://images.unsplash.com/photo-1587300003388-59208cc962cb?w=600&q=80&crop=entropy&fit=crop&h=500",
+    src: "https://images.pexels.com/photos/2607544/pexels-photo-2607544.jpeg?auto=compress&cs=tinysrgb&w=600",
     type: "image",
     caption: "Beautiful silky coat",
   },
   {
-    src: "https://images.unsplash.com/photo-1548199973-03cce0bbc87b?w=800&q=85",
+    src: "https://images.pexels.com/photos/1805164/pexels-photo-1805164.jpeg?auto=compress&cs=tinysrgb&w=600",
     type: "image",
     caption: "Happy best friends",
   },
   {
-    src: "https://images.unsplash.com/photo-1537151625747-768eb6cf92b2?w=800&q=85",
+    src: "https://images.pexels.com/photos/3361741/pexels-photo-3361741.jpeg?auto=compress&cs=tinysrgb&w=600",
     type: "image",
     caption: "Golden afternoon nap ☀️",
   },
   {
-    src: "https://images.unsplash.com/photo-1583511655826-05700d52f4d9?w=800&q=85",
+    src: "https://images.pexels.com/photos/2023384/pexels-photo-2023384.jpeg?auto=compress&cs=tinysrgb&w=600",
     type: "image",
     caption: "Pure Yorkshire Terrier charm",
   },
   {
-    src: "https://images.unsplash.com/photo-1587300003388-59208cc962cb?w=800&q=80&fit=crop&h=600",
+    src: "https://images.pexels.com/photos/1458925/pexels-photo-1458925.jpeg?auto=compress&cs=tinysrgb&w=400&h=500&fit=crop",
     type: "image",
     caption: "Snuggle time 🤍",
   },
   {
-    src: "https://images.pexels.com/photos/1458925/pexels-photo-1458925.jpeg?w=800&q=85",
+    src: "https://images.pexels.com/photos/4498217/pexels-photo-4498217.jpeg?auto=compress&cs=tinysrgb&w=600",
     type: "image",
     caption: "Adventures await 🌿",
   },
@@ -452,14 +453,18 @@ input,textarea,select{font-family:'Jost',sans-serif}
 
 /* ── Utility ── */
 .show-mob{display:none}
+
+@keyframes waFloat { 0%,100%{transform:translateY(0) scale(1)} 50%{transform:translateY(-6px) scale(1)} }
+@keyframes waPulse { 0%{transform:scale(1);opacity:.8} 100%{transform:scale(1.8);opacity:0} }
+
 `;
 
 /* ═══════════════════════════════════════════════════════════
    HOOKS
 ═══════════════════════════════════════════════════════════ */
 function useToast() {
-  const [toasts, set] = useState([]);
-  const add = useCallback((msg, type = "ok") => {
+  const [toasts, set] = useState<any[]>([]);
+  const add = useCallback((msg, type: string = "ok") => {
     const id = Date.now();
     set(t => [...t, {id, msg, type}]);
     setTimeout(() => set(t => t.filter(x => x.id !== id)), 3600);
@@ -473,8 +478,8 @@ function useReveal() {
     const io = new IntersectionObserver(entries => {
       entries.forEach(e => {
         if (e.isIntersecting) {
-          const delay = +(e.target.dataset.d || 0);
-          setTimeout(() => e.target.classList.add("in"), delay);
+          const delay = +((e.target as HTMLElement).dataset.d || 0);
+          setTimeout(() => (e.target as HTMLElement).classList.add("in"), delay);
         }
       });
     }, { threshold: 0.08, rootMargin: "0px 0px -40px 0px" });
@@ -493,7 +498,7 @@ function Spinner({ size = 20, color = "#c4793a" }) {
 function Toasts({ toasts }) {
   return (
     <div style={{position:"fixed",bottom:20,right:20,zIndex:9999,display:"flex",flexDirection:"column",gap:8,maxWidth:300,width:"calc(100vw - 40px)"}}>
-      {toasts.map(t => (
+      {toasts.map((t: any) => (
         <div key={t.id} style={{
           padding:"12px 18px",borderRadius:14,fontWeight:700,fontSize:".87rem",
           background: t.type==="err" ? "#fff0ee" : "#fff8f0",
@@ -718,10 +723,10 @@ function Hero({ available }) {
         </p>
 
         <div style={{display:"flex",gap:13,flexWrap:"wrap",animation:"fadeUp .55s ease .42s both"}}>
-          <Btn onClick={()=>document.getElementById("dogs").scrollIntoView({behavior:"smooth"})}>
+          <Btn onClick={()=>document.getElementById("dogs")?.scrollIntoView({behavior:"smooth"})}>
             Meet Our Yorkies 🐾
           </Btn>
-          <Btn v="ivory" onClick={()=>document.getElementById("contact").scrollIntoView({behavior:"smooth"})}
+          <Btn v="ivory" onClick={()=>document.getElementById("contact")?.scrollIntoView({behavior:"smooth"})}
             sx={{background:"rgba(255,255,255,.15)",color:"#fff",border:"2px solid rgba(255,255,255,.45)",backdropFilter:"blur(4px)"}}>
             Start Adoption →
           </Btn>
@@ -891,7 +896,7 @@ function DogsSection({ dogs, loading, onAdopt, admin, onDelete, onEdit }) {
               <p style={{fontSize:"1.05rem"}}>{dogs.length===0?"No Yorkies listed yet — check back soon!":"No dogs match this filter."}</p>
             </div>
           : <div className="auto-cards">
-              {shown.map((d,i) => <DogCard key={d.id} dog={d} onAdopt={onAdopt} admin={admin} onDelete={onDelete} onEdit={onEdit} delay={i*70}/>)}
+              {shown.map((d: any, i: any) => <DogCard key={d.id} dog={d} onAdopt={onAdopt} admin={admin} onDelete={onDelete} onEdit={onEdit} delay={i*70}/>)}
             </div>
       }
     </section>
@@ -903,13 +908,13 @@ function DogsSection({ dogs, loading, onAdopt, admin, onDelete, onEdit }) {
 ═══════════════════════════════════════════════════════════ */
 function AdoptModal({ dog, onClose, onSubmit }) {
   const [f, setF] = useState({firstName:"",lastName:"",email:"",phone:"",location:"",timeline:"1-2 weeks",living:"",experience:"",message:""});
-  const [errs, setErrs] = useState({});
+  const [errs, setErrs] = useState<any>({});
   const [step, setStep] = useState(1);
   const [res, setRes] = useState(null);
-  const s = k => v => setF(x=>({...x,[k]:v}));
+  const s = (k: string) => (v: any) => setF((x: any) => ({...x,[k]:v}));
 
   const validate = () => {
-    const e={};
+    const e: any = {};
     if(!f.firstName.trim())e.firstName="Required";
     if(!f.lastName.trim())e.lastName="Required";
     if(!f.email||!/\S+@\S+\.\S+/.test(f.email))e.email="Valid email required";
@@ -952,7 +957,7 @@ function AdoptModal({ dog, onClose, onSubmit }) {
             <div style={{background:"rgba(80,140,80,.08)",border:"1px solid rgba(80,140,80,.2)",borderRadius:12,padding:"12px 14px"}}>
               <div style={{fontSize:"1.2rem",marginBottom:5}}>✉️</div>
               <div style={{fontWeight:800,color:"#2d7a2d",fontSize:".84rem",marginBottom:3}}>Confirmation Sent</div>
-              <p style={{fontSize:".78rem",color:"var(--t2)",lineHeight:1.5}}>A confirmation email has been sent to <strong>{dog && res?.email}</strong>.</p>
+              <p style={{fontSize:".78rem",color:"var(--t2)",lineHeight:1.5}}>A confirmation email has been sent to <strong>{dog && (res )?.email}</strong>.</p>
             </div>
           </div>
 
@@ -962,7 +967,7 @@ function AdoptModal({ dog, onClose, onSubmit }) {
           </div>
 
           <p style={{color:"var(--t3)",fontSize:".83rem",marginBottom:20}}>
-            Application ID: <code style={{color:"var(--warm)",background:"rgba(196,121,58,.1)",padding:"2px 8px",borderRadius:6}}>{res?.id?.slice(0,8).toUpperCase()}</code>
+            Application ID: <code style={{color:"var(--warm)",background:"rgba(196,121,58,.1)",padding:"2px 8px",borderRadius:6}}>{(res as any)?.id?.slice(0,8).toUpperCase()}</code>
           </p>
           <p style={{color:"var(--t3)",fontSize:".82rem",marginBottom:22}}>We'll be in touch within <strong style={{color:"var(--terracotta)"}}>24–48 hours</strong>.</p>
           <Btn v="outline" onClick={onClose}>Close</Btn>
@@ -1043,11 +1048,15 @@ function About() {
 
         {/* Visual */}
         <div className="sr-r" style={{position:"relative"}}>
-          <div style={{borderRadius:28,overflow:"hidden",minHeight:420,
+          <div style={{borderRadius:28,overflow:"hidden",minHeight:220,
             background:"linear-gradient(135deg,var(--ivory3),var(--sand2))",
             display:"flex",alignItems:"center",justifyContent:"center",fontSize:"8rem",
             border:"2px solid rgba(196,121,58,.15)",
-            boxShadow:"0 20px 60px rgba(44,24,16,.15), inset 0 1px 0 rgba(255,255,255,.8)"}}>🐕</div>
+            boxShadow:"0 20px 60px rgba(44,24,16,.15), inset 0 1px 0 rgba(255,255,255,.8)"}}><img
+            src="https://cdn.greenfieldpuppies.com/wp-content/uploads/2025/03/three-yorkie-puppies-sitting-in-grass-600x600.jpeg" alt="Yorkie dog"
+            style={{width:"100%",height:"100%",objectFit:"cover",borderRadius:26}}
+          />
+        </div>
           {/* Decorative badge */}
           <div style={{position:"absolute",bottom:-16,right:-16,
             background:"linear-gradient(135deg,#8b3a0f,#c4793a)",
@@ -1071,7 +1080,7 @@ function About() {
         </p>
       </div>
       <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(240px,1fr))",gap:18}}>
-        {docs.map((d,i)=>(
+        {docs.map((d: any, i: any) =>(
           <div key={d.title} className="sr-z" data-d={i*65}
             style={{background:"#fff",border:"1px solid rgba(196,121,58,.12)",borderRadius:18,padding:"22px 20px",
               transition:"all .24s",cursor:"default"}}
@@ -1116,16 +1125,16 @@ function GalleryImg({ src, alt, style }) {
 }
 
 function Gallery({ admin, toast }) {
-  const [items, setItems]   = useState([]);
+  const [items, setItems]   = useState<any[]>([]);
   const [loading, setLoad]  = useState(true);
   const [addOpen, setAdd]   = useState(false);
-  const [lb, setLb]         = useState(null);
+  const [lb, setLb]         = useState<any>(null);
   const [lbIdx, setLbIdx]   = useState(0);
 
   const load = useCallback(async () => { setLoad(true); setItems(await API.getGal()); setLoad(false); }, []);
   useEffect(() => { load(); }, [load]);
 
-  const openLightbox = (item, idx) => { setLb(item); setLbIdx(idx); };
+  const openLightbox = (item, idx: number) => { setLb(item); setLbIdx(idx); };
   const prevLb = () => { const i = (lbIdx - 1 + items.length) % items.length; setLb(items[i]); setLbIdx(i); };
   const nextLb = () => { const i = (lbIdx + 1) % items.length; setLb(items[i]); setLbIdx(i); };
 
@@ -1220,7 +1229,7 @@ function Gallery({ admin, toast }) {
                 {admin && (
                   <button onClick={e => {
                     e.stopPropagation();
-                    API.deleteMedia(item.id).then(() => { setItems(g => g.filter(x => x.id !== item.id)); toast("Removed from gallery."); });
+                    API.deleteMedia(item.id).then(() => { setItems((g: any[]) => g.filter((x: any) => x.id !== item.id)); toast("Removed from gallery."); });
                   }} style={{ alignSelf:"flex-end", background:"rgba(160,50,50,.85)", border:"none", borderRadius:"50%",
                     width:28, height:28, color:"#fff", cursor:"pointer", fontSize:".8rem",
                     display:"flex", alignItems:"center", justifyContent:"center" }}>🗑️</button>
@@ -1294,7 +1303,7 @@ function Gallery({ admin, toast }) {
       {addOpen && (
         <AddMediaModal onClose={() => setAdd(false)} onSave={async item => {
           const m = await API.addMedia(item);
-          setItems(g => [m, ...g]);
+          setItems((g: any[]) => [m, ...g]);
           setAdd(false);
           toast("Added to gallery! 📸");
         }} />
@@ -1306,8 +1315,8 @@ function Gallery({ admin, toast }) {
 function AddMediaModal({ onClose, onSave }) {
   const [src,setSrc]=useState("");const [type,setType]=useState("image");
   const [cap,setCap]=useState("");const [mode,setMode]=useState("file");const [L,setL]=useState(false);
-  const ref=useRef();
-  const hFile=e=>{const f=e.target.files[0];if(!f)return;const v=f.type.startsWith("video/");setType(v?"video":"image");const r=new FileReader();r.onload=ev=>setSrc(ev.target.result);r.readAsDataURL(f);};
+  const ref = useRef<HTMLInputElement>(null);
+  const hFile = (e: any) => {const f=e.target.files[0];if(!f)return;const v=f.type.startsWith("video/");setType(v?"video":"image");const r=new FileReader();r.onload=(ev)=>setSrc((ev.target as any).result as string);r.readAsDataURL(f);};
   return (
     <Modal open title="Add to Gallery" sub="Upload or link a photo / video" onClose={onClose}>
       <div style={{display:"flex",gap:8,marginBottom:16}}>
@@ -1321,7 +1330,7 @@ function AddMediaModal({ onClose, onSave }) {
       {mode==="file"
         ?<>
            <input type="file" ref={ref} accept="image/*,video/*" onChange={hFile} style={{display:"none"}}/>
-           <div onClick={()=>ref.current.click()} style={{border:"2px dashed rgba(196,121,58,.25)",borderRadius:14,
+           <div onClick={()=>ref.current?.click()} style={{border:"2px dashed rgba(196,121,58,.25)",borderRadius:14,
              padding:"26px 18px",textAlign:"center",cursor:"pointer",marginBottom:14,
              background:"rgba(196,121,58,.03)",transition:"border-color .2s"}}
              onMouseEnter={e=>e.currentTarget.style.borderColor="rgba(196,121,58,.5)"}
@@ -1421,9 +1430,10 @@ function Contact() {
 ═══════════════════════════════════════════════════════════ */
 function AddDogModal({ onClose, onSave }) {
   const [f,setF]=useState({name:"",age:"",gender:"Female",weight:"",desc:"",mediaType:"image",mediaSrc:"",featured:false});
-  const [mode,setMode]=useState("file");const [L,setL]=useState(false);const [err,setErr]=useState({});
-  const ref=useRef();const s=k=>v=>setF(x=>({...x,[k]:v}));
-  const hFile=e=>{const file=e.target.files[0];if(!file)return;const v=file.type.startsWith("video/");const r=new FileReader();r.onload=ev=>setF(x=>({...x,mediaSrc:ev.target.result,mediaType:v?"video":"image"}));r.readAsDataURL(file);};
+  const [mode,setMode]=useState("file");const [L,setL]=useState(false);const [err,setErr]=useState<any>({});
+  const ref = useRef<HTMLInputElement>(null);
+  const s = (k: string) => (v: any) => setF((x: any) => ({...x,[k]:v}));
+  const hFile = (e: any) => {const file=e.target.files[0];if(!file)return;const v=file.type.startsWith("video/");const r=new FileReader();r.onload=(ev)=>setF((x)=>({...x,mediaSrc:(ev.target as any).result as string,mediaType:v?"video":"image"}));r.readAsDataURL(file);};
   return (
     <Modal open title="Add New Yorkie" sub="Create a new adoption listing" onClose={onClose} wide>
       <div className="cols-2">
@@ -1446,7 +1456,7 @@ function AddDogModal({ onClose, onSave }) {
         {mode==="file"
           ?<>
              <input type="file" ref={ref} accept="image/*,video/*" onChange={hFile} style={{display:"none"}}/>
-             <div onClick={()=>ref.current.click()} style={{border:"2px dashed rgba(196,121,58,.22)",borderRadius:13,padding:"22px",textAlign:"center",cursor:"pointer",background:"rgba(196,121,58,.03)",transition:"border-color .2s"}}
+             <div onClick={()=>ref.current?.click()} style={{border:"2px dashed rgba(196,121,58,.22)",borderRadius:13,padding:"22px",textAlign:"center",cursor:"pointer",background:"rgba(196,121,58,.03)",transition:"border-color .2s"}}
                onMouseEnter={e=>e.currentTarget.style.borderColor="rgba(196,121,58,.5)"}
                onMouseLeave={e=>e.currentTarget.style.borderColor="rgba(196,121,58,.22)"}>
                {f.mediaSrc?f.mediaType==="video"?<video src={f.mediaSrc} style={{maxHeight:120,borderRadius:8}} controls/>:<img src={f.mediaSrc} style={{maxHeight:120,borderRadius:8,objectFit:"cover"}}/>
@@ -1498,14 +1508,14 @@ function EditDogModal({ dog, onClose, onSave }) {
 ═══════════════════════════════════════════════════════════ */
 function AdminDash({ onClose, toast }) {
   const [tab,setTab]=useState("dogs");
-  const [dogs,setDogs]=useState([]);const [apps,setApps]=useState([]);
+  const [dogs,setDogs]=useState<any[]>([]);const [apps,setApps]=useState<any[]>([]);
   const [L,setL]=useState(true);const [addOpen,setAdd]=useState(false);const [editDog,setEdit]=useState(null);
   const [tick,setTick]=useState(0);
 
   const load=async()=>{setL(true);const[d,a]=await Promise.all([API.getDogs(),API.getApps()]);setDogs(d);setApps(a);setL(false);};
   useEffect(()=>{load();},[tick]);
   // Poll while AI loading
-  useEffect(()=>{const h=apps.some(a=>a.aiLoading);if(!h)return;const t=setTimeout(()=>setTick(x=>x+1),4000);return()=>clearTimeout(t);},[apps]);
+  useEffect(()=>{const h=apps.some((a: any) =>a.aiLoading);if(!h)return;const t=setTimeout(()=>setTick(x=>x+1),4000);return()=>clearTimeout(t);},[apps]);
 
   return (
     <div style={{background:"var(--ivory2)",minHeight:"100vh",padding:"28px 5vw"}}>
@@ -1519,7 +1529,7 @@ function AdminDash({ onClose, toast }) {
 
       {/* Stats */}
       <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(130px,1fr))",gap:12,marginBottom:26}}>
-        {[["🐕","Listings",dogs.length],["✅","Available",dogs.filter(d=>d.status!=="adopted").length],["🏠","Adopted",dogs.filter(d=>d.status==="adopted").length],["📋","Applications",apps.length]].map(([ico,lbl,val])=>(
+        {[["🐕","Listings",dogs.length],["✅","Available",dogs.filter((d: any) =>d.status!=="adopted").length],["🏠","Adopted",dogs.filter((d: any) =>d.status==="adopted").length],["📋","Applications",apps.length]].map(([ico,lbl,val])=>(
           <div key={lbl} style={{background:"#fff",border:"1px solid rgba(196,121,58,.15)",borderRadius:15,padding:"18px 16px",boxShadow:"0 2px 12px rgba(44,24,16,.06)"}}>
             <div style={{fontSize:"1.4rem",marginBottom:5}}>{ico}</div>
             <div className="serif" style={{fontFamily:"'Playfair Display',serif",fontSize:"1.8rem",fontWeight:900,color:"var(--terracotta)"}}>{L?"—":val}</div>
@@ -1552,8 +1562,8 @@ function AdminDash({ onClose, toast }) {
                    <div style={{fontSize:"3rem",marginBottom:12}}>🐾</div><p>No dogs yet. Add the first one!</p>
                  </div>
                 :<div className="auto-cards">
-                   {dogs.map((d,i)=><DogCard key={d.id} dog={d} admin
-                     onDelete={async id=>{await API.deleteDog(id);setDogs(x=>x.filter(d=>d.id!==id));toast("Dog removed.");}}
+                   {dogs.map((d: any, i: any) =><DogCard key={d.id} dog={d} admin
+                     onDelete={async id=>{await API.deleteDog(id);setDogs((x: any[]) =>x.filter((d: any) =>d.id!==id));toast("Dog removed.");}}
                      onEdit={setEdit} delay={i*60}/>)}
                  </div>}
             </div>
@@ -1650,7 +1660,7 @@ function AdminDash({ onClose, toast }) {
                                    {a.aiStrengths?.length > 0 && (
                                      <div style={{background:"rgba(80,140,80,.07)",border:"1px solid rgba(80,140,80,.18)",borderRadius:10,padding:"10px 12px"}}>
                                        <div style={{fontSize:".72rem",fontWeight:800,color:"#2d7a2d",textTransform:"uppercase",letterSpacing:".07em",marginBottom:6}}>✅ Strengths</div>
-                                       {a.aiStrengths.map((s,i) => (
+                                       {a.aiStrengths.map((s: any, i: any) => (
                                          <div key={i} style={{fontSize:".8rem",color:"var(--t2)",lineHeight:1.55,marginBottom:3,display:"flex",gap:5,alignItems:"flex-start"}}>
                                            <span style={{color:"#2d7a2d",flexShrink:0,marginTop:2}}>•</span>{s}
                                          </div>
@@ -1660,7 +1670,7 @@ function AdminDash({ onClose, toast }) {
                                    {a.aiConcerns?.length > 0 && (
                                      <div style={{background:"rgba(196,121,58,.07)",border:"1px solid rgba(196,121,58,.18)",borderRadius:10,padding:"10px 12px"}}>
                                        <div style={{fontSize:".72rem",fontWeight:800,color:"var(--terracotta)",textTransform:"uppercase",letterSpacing:".07em",marginBottom:6}}>⚠️ Watch Points</div>
-                                       {a.aiConcerns.map((c,i) => (
+                                       {a.aiConcerns.map((c: any, i: any) => (
                                          <div key={i} style={{fontSize:".8rem",color:"var(--t2)",lineHeight:1.55,marginBottom:3,display:"flex",gap:5,alignItems:"flex-start"}}>
                                            <span style={{color:"var(--warm)",flexShrink:0,marginTop:2}}>•</span>{c}
                                          </div>
@@ -1686,7 +1696,7 @@ function AdminDash({ onClose, toast }) {
                                      💬 Suggested Follow-up Questions
                                    </summary>
                                    <div style={{paddingTop:8}}>
-                                     {a.aiSuggestedQuestions.map((q,i) => (
+                                     {a.aiSuggestedQuestions.map((q: any, i: any) => (
                                        <div key={i} style={{fontSize:".8rem",color:"var(--t2)",lineHeight:1.6,marginBottom:5,paddingLeft:14,borderLeft:"2px solid rgba(196,121,58,.25)"}}>
                                          {q}
                                        </div>
@@ -1722,7 +1732,7 @@ function AdminDash({ onClose, toast }) {
         </>
       )}
 
-      {addOpen&&<AddDogModal onClose={()=>setAdd(false)} onSave={async d=>{const n=await API.addDog(d);setDogs(x=>[n,...x]);setAdd(false);toast(`${n.name} added! 🐾`);}}/>}
+      {addOpen&&<AddDogModal onClose={()=>setAdd(false)} onSave={async d=>{const n=await API.addDog(d);setDogs((x: any[]) => [n, ...x]);setAdd(false);toast(`${n.name} added! 🐾`);}}/>}
       {editDog&&<EditDogModal dog={editDog} onClose={()=>setEdit(null)} onSave={async(id,u)=>{const d=await API.updateDog(id,u);setDogs(x=>x.map(y=>y.id===id?d:y));setEdit(null);toast("Updated!");}}/>}
     </div>
   );
@@ -1844,19 +1854,92 @@ function Footer() {
   );
 }
 
+
+/* ═══════════════════════════════════════════════════════════
+   WHATSAPP FLOATING BUTTON
+═══════════════════════════════════════════════════════════ */
+function WhatsAppButton() {
+  const [hov, setHov] = useState(false);
+  const phone = "12724129441";
+  const msg = encodeURIComponent("Hi Janet! I'm interested in adopting a Yorkie 🐾");
+  return (
+    <a
+      href={`https://wa.me/${phone}?text=${msg}`}
+      target="_blank"
+      rel="noopener noreferrer"
+      onMouseEnter={() => setHov(true)}
+      onMouseLeave={() => setHov(false)}
+      style={{
+        position: "fixed",
+        bottom: 28,
+        right: 28,
+        zIndex: 8888,
+        width: 60,
+        height: 60,
+        borderRadius: "50%",
+        background: hov ? "#1ebe57" : "#25D366",
+        display: "flex",
+        alignItems: "center",
+        justifyContent: "center",
+        boxShadow: hov
+          ? "0 6px 28px rgba(37,211,102,.65), 0 0 0 6px rgba(37,211,102,.18)"
+          : "0 4px 18px rgba(37,211,102,.5)",
+        transform: hov ? "scale(1.12)" : "scale(1)",
+        transition: "all .25s cubic-bezier(.34,1.56,.64,1)",
+        textDecoration: "none",
+        animation: "waFloat 3s ease-in-out infinite",
+      }}
+      title="Chat with us on WhatsApp"
+    >
+      {/* WhatsApp SVG icon */}
+      <svg width="32" height="32" viewBox="0 0 32 32" fill="none" xmlns="http://www.w3.org/2000/svg">
+        <path d="M16 3C8.82 3 3 8.82 3 16c0 2.42.65 4.7 1.78 6.67L3 29l6.53-1.71A13 13 0 0016 29c7.18 0 13-5.82 13-13S23.18 3 16 3z" fill="#fff"/>
+        <path d="M22.5 19.44c-.3-.15-1.77-.87-2.04-.97-.27-.1-.47-.15-.67.15-.2.3-.77.97-.94 1.17-.17.2-.35.22-.65.07-.3-.15-1.26-.46-2.4-1.48-.89-.79-1.49-1.77-1.66-2.07-.17-.3-.02-.46.13-.61.13-.13.3-.35.45-.52.15-.17.2-.3.3-.5.1-.2.05-.37-.02-.52-.07-.15-.67-1.62-.92-2.22-.24-.58-.49-.5-.67-.51-.17-.01-.37-.01-.57-.01s-.52.07-.8.37c-.27.3-1.04 1.02-1.04 2.49s1.07 2.89 1.22 3.09c.15.2 2.1 3.2 5.08 4.49.71.31 1.27.49 1.7.63.71.23 1.36.2 1.87.12.57-.09 1.77-.72 2.02-1.42.25-.7.25-1.3.17-1.42-.07-.12-.27-.2-.57-.35z" fill="#25D366"/>
+      </svg>
+      {/* Pulse ring */}
+      <span style={{
+        position: "absolute",
+        width: "100%",
+        height: "100%",
+        borderRadius: "50%",
+        background: "rgba(37,211,102,.35)",
+        animation: "waPulse 2s ease-out infinite",
+        pointerEvents: "none",
+      }}/>
+    </a>
+  );
+}
+
 /* ═══════════════════════════════════════════════════════════
    ROOT APP
 ═══════════════════════════════════════════════════════════ */
 export default function App() {
-  const [dogs,   setDogs]  = useState([]);
+  const [dogs,   setDogs]  = useState<any[]>([]);
   const [loading,setLoad]  = useState(true);
   const [adoptDog,setAdopt]= useState(null);
   const [login,  setLogin] = useState(false);
   const [admin,  setAdmin] = useState(false);
   const { toasts, add: toast } = useToast();
 
-  const loadDogs = async () => { setLoad(true); setDogs(await API.getDogs()); setLoad(false); };
-  useEffect(() => { loadDogs(); }, []);
+  // Always read directly from localStorage — never stale
+  const loadDogs = useCallback(async () => {
+    setLoad(true);
+    const fresh = DB.dogs();
+    setDogs([...fresh]);
+    setLoad(false);
+  }, []);
+
+  useEffect(() => { loadDogs(); }, [loadDogs]);
+
+  // Reload dogs whenever user returns to this tab (e.g. after admin session)
+  useEffect(() => {
+    const onVisible = () => {
+      if (document.visibilityState === "visible") loadDogs();
+    };
+    document.addEventListener("visibilitychange", onVisible);
+    return () => document.removeEventListener("visibilitychange", onVisible);
+  }, [loadDogs]);
+
   useReveal();
 
   if (admin) return (
@@ -1869,7 +1952,7 @@ export default function App() {
     </>
   );
 
-  const available = dogs.filter(d => d.status !== "adopted").length;
+  const available = dogs.filter((d: any) => d.status !== "adopted").length;
   return (
     <>
       <style>{CSS}</style>
@@ -1882,6 +1965,7 @@ export default function App() {
       <Gallery admin={false} toast={toast} />
       <Contact />
       <Footer />
+      <WhatsAppButton />
       <LoginModal open={login} onClose={() => setLogin(false)} onSuccess={() => { setLogin(false); setAdmin(true); }} />
       {adoptDog && (
         <AdoptModal dog={adoptDog} onClose={() => setAdopt(null)}
