@@ -277,7 +277,7 @@ ${OWNER_EMAIL}`;
 ═══════════════════════════════════════════════════════════ */
 const SEED_GALLERY = [
   {
-    src: "https://images.pexels.com/photos/1458925/pexels-photo-1458925.jpeg?auto=compress&cs=tinysrgb&w=600",
+    src: "",
     type: "image",
     caption: "Sweet little Yorkie 🐾",
   },
@@ -1502,7 +1502,6 @@ function EditDogModal({ dog, onClose, onSave }) {
     </Modal>
   );
 }
-
 /* ═══════════════════════════════════════════════════════════
    ADMIN DASHBOARD
 ═══════════════════════════════════════════════════════════ */
@@ -1737,7 +1736,6 @@ function AdminDash({ onClose, toast }) {
     </div>
   );
 }
-
 /* ═══════════════════════════════════════════════════════════
    ADMIN LOGIN — password field, no hint shown anywhere
 ═══════════════════════════════════════════════════════════ */
